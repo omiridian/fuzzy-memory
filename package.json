@@ -1,0 +1,16 @@
+{
+  "name": "fuzzy-memory",
+  "version": "1.0.0",
+  "description": "Aetherlings — a 2D monster-collecting JRPG with turn-based battles, 300+ creatures, branching evolutions, quests and an item economy.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "python3 -m http.server 8080",
+    "serve": "python3 -m http.server 8080",
+    "test": "node tests/run.js",
+    "dex": "node tools/dexdump.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

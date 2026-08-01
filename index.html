@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Aetherlings</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #0b0d14;
+        color: #e8e2d0;
+        font-family: "Courier New", ui-monospace, monospace;
+        overflow: hidden;
+      }
+      #shell {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        padding: 12px;
+      }
+      #frame {
+        position: relative;
+        border: 3px solid #3a3f52;
+        border-radius: 10px;
+        box-shadow: 0 18px 50px rgba(0, 0, 0, 0.6);
+        background: #0b0d14;
+        line-height: 0;
+      }
+      canvas {
+        display: block;
+        image-rendering: auto;
+        max-width: 100%;
+        max-height: calc(100vh - 90px);
+      }
+      #hint {
+        font-size: 12px;
+        color: #8d8f9c;
+        text-align: center;
+        line-height: 1.5;
+      }
+      #hint b {
+        color: #f0b040;
+        font-weight: normal;
+      }
+      @media (max-width: 720px) {
+        #hint {
+          font-size: 11px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="shell">
+      <div id="frame">
+        <canvas id="game" width="720" height="480"></canvas>
+      </div>
+      <div id="hint">
+        <b>Arrows / WASD</b> move &nbsp;·&nbsp; <b>Z / Enter</b> confirm &nbsp;·&nbsp;
+        <b>X / Esc</b> back &nbsp;·&nbsp; <b>M</b> menu &nbsp;·&nbsp; <b>Shift</b> run
+      </div>
+    </div>
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>
