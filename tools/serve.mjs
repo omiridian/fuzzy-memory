@@ -7,6 +7,7 @@
 import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
+import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -57,11 +58,37 @@ server.on('error', (err) => {
   throw err;
 });
 
-server.listen(requested, () => {
+/** Addresses another device on the same network can reach. */
+function localAddresses() {
+  const found = [];
+  for (const entries of Object.values(os.networkInterfaces())) {
+    for (const entry of entries || []) {
+      if (entry.family === 'IPv4' && !entry.internal) found.push(entry.address);
+    }
+  }
+  return found;
+}
+
+// Listening on 0.0.0.0 lets a phone on the same Wi-Fi play too.
+server.listen(requested, '0.0.0.0', () => {
   const { port } = server.address();
-  process.stdout.write(
-    `\n  Aetherlings is running.\n\n` +
-      `  Open this in your browser:  http://localhost:${port}\n\n` +
-      `  Press Ctrl+C here to stop the server.\n\n`
-  );
+  const lines = [
+    '',
+    '  Aetherlings is running.',
+    '',
+    `  On this computer:      http://localhost:${port}`,
+  ];
+  const addresses = localAddresses();
+  if (addresses.length) {
+    lines.push('');
+    lines.push('  On a phone or tablet on the same Wi-Fi:');
+    for (const address of addresses) lines.push(`                         http://${address}:${port}`);
+    lines.push('');
+    lines.push('  (Windows may ask to allow Node through the firewall — say yes,');
+    lines.push('   and tick "Private networks".)');
+  }
+  lines.push('');
+  lines.push('  Press Ctrl+C here to stop the server.');
+  lines.push('');
+  process.stdout.write(lines.join('\n') + '\n');
 });

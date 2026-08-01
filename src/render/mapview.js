@@ -54,6 +54,18 @@ function drawDetail(ctx, tile, x, y, size, time, seed) {
       ctx.closePath();
       ctx.fill();
       break;
+    case 'housewall':
+      ctx.fillStyle = c;
+      ctx.fillRect(x, y, size, 5);
+      ctx.strokeStyle = 'rgba(0,0,0,0.18)';
+      ctx.lineWidth = 1;
+      for (let i = 1; i < 3; i++) {
+        ctx.beginPath();
+        ctx.moveTo(x, y + 5 + ((size - 5) / 3) * i);
+        ctx.lineTo(x + size, y + 5 + ((size - 5) / 3) * i);
+        ctx.stroke();
+      }
+      break;
     case 'cliff':
       ctx.fillStyle = c;
       ctx.fillRect(x, y + size * 0.6, size, size * 0.4);

@@ -37,12 +37,18 @@ const KEY_MAP = {
   ShiftRight: 'run',
 };
 
+// The game is drawn in a fixed coordinate space and scaled to whatever the
+// window gives us, so every screen gets the same layout at its own sharpness.
+const LOGICAL_WIDTH = 720;
+const LOGICAL_HEIGHT = 480;
+
 class App {
   constructor(canvas) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
-    this.width = canvas.width;
-    this.height = canvas.height;
+    this.width = LOGICAL_WIDTH;
+    this.height = LOGICAL_HEIGHT;
+    this.renderScale = 1;
     this.scenes = [];
     this.game = null;
     this.dt = 0;
@@ -50,8 +56,28 @@ class App {
     this.fadeState = null;
     this.toast = null;
     this.toastTimer = 0;
-    this.input = { held: {}, };
+    this.input = { held: {} };
     this.bindInput();
+    this.bindTouch();
+    this.resize();
+    window.addEventListener('resize', () => this.resize());
+    window.addEventListener('orientationchange', () => setTimeout(() => this.resize(), 120));
+  }
+
+  /**
+   * Matches the canvas backing store to its on-screen size and the display's
+   * pixel density. Game code keeps drawing in 720x480 either way.
+   */
+  resize() {
+    const rect = this.canvas.getBoundingClientRect();
+    const cssWidth = rect.width || LOGICAL_WIDTH;
+    const dpr = Math.min(window.devicePixelRatio || 1, 3);
+    const pixels = Math.max(1, Math.round(cssWidth * dpr));
+    if (this.canvas.width !== pixels) {
+      this.canvas.width = pixels;
+      this.canvas.height = Math.round((pixels * LOGICAL_HEIGHT) / LOGICAL_WIDTH);
+    }
+    this.renderScale = this.canvas.width / LOGICAL_WIDTH;
   }
 
   // ── Scene stack ──────────────────────────────────────────────────────────
@@ -94,6 +120,44 @@ class App {
     window.addEventListener('blur', () => {
       this.input.held = {};
     });
+  }
+
+  /** Wires the on-screen pad up to the same actions the keyboard produces. */
+  bindTouch() {
+    const pad = document.getElementById('touch');
+    if (!pad) return;
+    const press = (action, down) => {
+      if (this.input.held[action] === down) return;
+      this.input.held[action] = down;
+      if (down && this.top && this.top.handleInput) this.top.handleInput(action, true);
+      else if (!down && this.top && this.top.handleInput) this.top.handleInput(action, false);
+    };
+    for (const button of pad.querySelectorAll('[data-key]')) {
+      const action = button.dataset.key;
+      const start = (e) => {
+        e.preventDefault();
+        button.classList.add('down');
+        press(action, true);
+      };
+      const end = (e) => {
+        e.preventDefault();
+        button.classList.remove('down');
+        press(action, false);
+      };
+      button.addEventListener('pointerdown', start);
+      button.addEventListener('pointerup', end);
+      button.addEventListener('pointercancel', end);
+      button.addEventListener('pointerleave', end);
+      button.addEventListener('contextmenu', (e) => e.preventDefault());
+    }
+    const full = document.getElementById('fullscreen');
+    if (full) {
+      full.addEventListener('click', () => {
+        const shell = document.getElementById('shell');
+        if (document.fullscreenElement) document.exitFullscreen();
+        else if (shell.requestFullscreen) shell.requestFullscreen().catch(() => {});
+      });
+    }
   }
 
   prompt(message, initial = '') {
@@ -241,6 +305,7 @@ class App {
 
   render() {
     const ctx = this.ctx;
+    ctx.setTransform(this.renderScale, 0, 0, this.renderScale, 0, 0);
     ctx.clearRect(0, 0, this.width, this.height);
     // Render the scene below when the top one is an overlay.
     const top = this.top;

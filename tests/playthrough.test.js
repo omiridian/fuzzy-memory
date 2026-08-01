@@ -186,6 +186,46 @@ group('walking the world', () => {
     }
   });
 
+  test('every doorway opens onto the rest of its map', () => {
+    // Walking out of a building used to drop the player inside the building's
+    // own footprint. Flood-filling from each doorway catches that class of bug.
+    const walkable = (map, x, y) => {
+      const tile = tileAt(map, x, y);
+      return !!tile && !tile.solid;
+    };
+    for (const id in maps) {
+      const map = maps[id];
+      const targets = [];
+      for (const marker in map.warpPoints || {}) targets.push(map.warpPoints[marker][0]);
+      if (map.spawn) targets.push(map.spawn);
+      for (const npc of map.npcs || []) targets.push({ x: npc.x, y: npc.y, npc: npc.id });
+      if (targets.length < 2) continue;
+
+      for (const marker in map.warpPoints || {}) {
+        const start = map.warpPoints[marker][0];
+        const seen = new Set([`${start.x},${start.y}`]);
+        const queue = [start];
+        while (queue.length) {
+          const { x, y } = queue.shift();
+          for (const [dx, dy] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) {
+            const nx = x + dx;
+            const ny = y + dy;
+            const key = `${nx},${ny}`;
+            if (seen.has(key) || !walkable(map, nx, ny)) continue;
+            seen.add(key);
+            queue.push({ x: nx, y: ny });
+          }
+        }
+        for (const target of targets) {
+          assert(
+            seen.has(`${target.x},${target.y}`),
+            `${id}: doorway ${marker} is cut off from ${target.npc || `${target.x},${target.y}`}`
+          );
+        }
+      }
+    }
+  });
+
   test('spawn points are not walled in', () => {
     for (const id in maps) {
       const map = maps[id];

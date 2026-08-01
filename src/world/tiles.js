@@ -31,6 +31,7 @@ tile('"', { name: 'deep grass', color: '#336a30', detail: 'tallgrass', detailCol
 tile('p', { name: 'path', color: '#c2a878', detail: 'speckle', detailColor: '#b39a68' });
 tile('P', { name: 'paving', color: '#b6b0a4', detail: 'brick', detailColor: '#a29c90' });
 tile('#', { name: 'tree', color: '#2f6a2c', solid: true, detail: 'tree', detailColor: '#1e4a1d' });
+tile('O', { name: 'house wall', color: '#b08a62', solid: true, detail: 'housewall', detailColor: '#8a6a48' });
 tile('T', { name: 'pine', color: '#265c30', solid: true, detail: 'pine', detailColor: '#17401f' });
 tile('M', { name: 'cliff', color: '#7d6b57', solid: true, detail: 'cliff', detailColor: '#5c4d3e' });
 tile('R', { name: 'boulder', color: '#8a7c68', solid: true, detail: 'rock', detailColor: '#6a5e4d' });

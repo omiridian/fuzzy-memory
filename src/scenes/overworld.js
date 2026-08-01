@@ -42,6 +42,7 @@ export class OverworldScene {
     this.game.x = x;
     this.game.y = y;
     this.moving = null;
+    this.warpCooldown = null;
     this.view.centerOn(x, y, map);
     this.groundItems = (map.items || []).filter((entry) => !this.game.getFlag(entry.flag));
     if (!opts.silent) {
@@ -153,8 +154,10 @@ export class OverworldScene {
     this.game.step();
     const map = this.map;
 
-    // Warps.
-    const warp = warpAt(map, this.game.x, this.game.y);
+    // Warps. The tile we were dropped onto is inert until we step off it.
+    const here = `${this.game.x},${this.game.y}`;
+    if (this.warpCooldown && this.warpCooldown !== here) this.warpCooldown = null;
+    const warp = this.warpCooldown === here ? null : warpAt(map, this.game.x, this.game.y);
     if (warp) {
       if (warp.requires && !this.game.bag.has(warp.requires)) {
         this.textBox.say(warp.lockedText || 'The way is closed.');
@@ -190,35 +193,29 @@ export class OverworldScene {
     const target = prepareMap(warp.to);
     if (!target) return;
     const points = target.warpPoints && target.warpPoints[warp.at];
-    let x;
-    let y;
-    if (points && points.length) {
-      ({ x, y } = points[0]);
-    } else {
-      x = target.spawn.x;
-      y = target.spawn.y;
-    }
-    // Step off the warp tile so the player does not bounce straight back.
-    const away = this.stepAwayFrom(target, x, y);
+    const landing = points && points.length ? points[0] : { x: target.spawn.x, y: target.spawn.y };
     this.app.fade(() => {
-      this.enterMap(warp.to, away.x, away.y);
+      // Arrive standing on the doorway itself. Walking back onto it is what
+      // triggers the return trip, so it stays inert until the player moves.
+      this.enterMap(warp.to, landing.x, landing.y);
+      this.warpCooldown = `${landing.x},${landing.y}`;
+      this.game.dir = this.exitDirection(target, landing);
     });
   }
 
-  stepAwayFrom(map, x, y) {
-    const order = [
-      [0, 1],
-      [0, -1],
-      [1, 0],
-      [-1, 0],
+  /** Faces the player toward whichever side of a doorway is open. */
+  exitDirection(map, landing) {
+    const options = [
+      ['down', 0, 1],
+      ['up', 0, -1],
+      ['left', -1, 0],
+      ['right', 1, 0],
     ];
-    for (const [dx, dy] of order) {
-      const nx = x + dx;
-      const ny = y + dy;
-      const tile = tileAt(map, nx, ny);
-      if (tile && !tile.solid && !warpAt(map, nx, ny)) return { x: nx, y: ny };
+    for (const [dir, dx, dy] of options) {
+      const tile = tileAt(map, landing.x + dx, landing.y + dy);
+      if (tile && !tile.solid && !warpAt(map, landing.x + dx, landing.y + dy)) return dir;
     }
-    return { x, y };
+    return 'down';
   }
 
   pickUp(entry) {

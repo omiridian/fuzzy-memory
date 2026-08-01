@@ -30,6 +30,20 @@ The game must be served over HTTP; opening `index.html` straight from the
 filesystem will not work, because browsers refuse to load ES modules over
 `file://`.
 
+### On a phone
+
+The server prints a second address for any device on the same Wi-Fi — open
+that on your phone and it plays there, with an on-screen d-pad that appears
+automatically on touch screens. Windows will ask to let Node through the
+firewall the first time; allow it for private networks.
+
+To play away from your computer, publish it: the game is a static site, so
+GitHub Pages serves it as-is. In the repository's **Settings → Pages**, set
+Source to *Deploy from a branch*, pick this branch and the `/ (root)` folder.
+A minute later it is live at `https://<user>.github.io/<repo>/`, playable from
+anywhere with no server running. Saves live in whichever browser you play in,
+so phone and desktop keep separate games.
+
 | Key | Does |
 | --- | --- |
 | Arrows / WASD | Walk |
@@ -92,7 +106,7 @@ src/
   render/             procedural sprites, tile painter, UI widgets
   scenes/             title, overworld, battle, menus, story scripts
 tests/                the test suite (no dependencies)
-tools/                static server, dex dump, browser smoke test
+tools/                static server, dex dump, browser + layout checks
 ```
 
 Nothing under `src/data`, `src/systems`, `src/battle` or `src/world` touches
@@ -104,6 +118,7 @@ the DOM, which is why the whole game logic runs under Node in the tests.
 node tests/run.js      # 137 assertions across data, systems, battles, a playthrough
 node tools/dexdump.js  # roster summary; --all, --id <name>, --type ember, --json
 node tools/smoke.mjs   # boots the real game in Chromium and plays the opening
+node tools/checklayout.mjs  # renders at desktop, laptop and phone sizes
 ```
 
 The suite covers data integrity (every learnset move exists, every warp lands
