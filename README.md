@@ -10,13 +10,25 @@ body plan and elemental palette.
 
 ## Running it
 
+You need [Node](https://nodejs.org) and nothing else — no `npm install`, no
+build step, no dependencies.
+
 ```bash
-npm start          # serves the folder on http://localhost:8080
+node tools/serve.mjs
 ```
 
-Then open <http://localhost:8080>. Any static file server works; the game is
-plain ES modules, so it does need to be served over HTTP rather than opened
-from the filesystem.
+Then open <http://localhost:8080>. Leave that terminal open while you play;
+Ctrl+C stops the server. If port 8080 is taken, pass another:
+`node tools/serve.mjs 3000`.
+
+`npm start` does the same thing. On Windows, PowerShell blocks npm's script
+wrapper by default (`npm.ps1 cannot be loaded because running scripts is
+disabled`) — use `node tools/serve.mjs` and sidestep it entirely, or run
+`npm.cmd start`.
+
+The game must be served over HTTP; opening `index.html` straight from the
+filesystem will not work, because browsers refuse to load ES modules over
+`file://`.
 
 | Key | Does |
 | --- | --- |
@@ -80,7 +92,7 @@ src/
   render/             procedural sprites, tile painter, UI widgets
   scenes/             title, overworld, battle, menus, story scripts
 tests/                the test suite (no dependencies)
-tools/                dex dump, browser smoke test
+tools/                static server, dex dump, browser smoke test
 ```
 
 Nothing under `src/data`, `src/systems`, `src/battle` or `src/world` touches
@@ -89,7 +101,7 @@ the DOM, which is why the whole game logic runs under Node in the tests.
 ## Tests
 
 ```bash
-npm test               # 137 assertions across data, systems, battles, a playthrough
+node tests/run.js      # 137 assertions across data, systems, battles, a playthrough
 node tools/dexdump.js  # roster summary; --all, --id <name>, --type ember, --json
 node tools/smoke.mjs   # boots the real game in Chromium and plays the opening
 ```
