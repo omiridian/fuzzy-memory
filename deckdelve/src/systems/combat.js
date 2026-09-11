@@ -8,6 +8,11 @@ import { getAbility } from '../data/classes.js';
 import { dist } from '../core/util.js';
 
 /** Armour blunts rather than blocks, so nothing is ever fully immune. */
+/** Tells the world something happened, when the world is listening. */
+function signal(world, name, data) {
+  if (world && world.signal) world.signal(name, data);
+}
+
 export function mitigate(amount, armor) {
   return Math.max(1, amount * (1 - Math.min(0.7, armor * 0.045)) - armor * 0.35);
 }
@@ -110,6 +115,7 @@ export function applyDamage(attacker, target, amount, world, opts = {}) {
   if (!opts.noCrit && attacker && attacker.crit && Math.random() < attacker.crit) {
     crit = true;
     raw *= 1.85;
+    if (attacker.side === 'party') signal(world, 'attack', { crit: true });
   }
 
   let dealt = opts.kind === 'tick' ? raw : mitigate(raw, target.armor || 0);
@@ -127,6 +133,9 @@ export function applyDamage(attacker, target, amount, world, opts = {}) {
 
   target.hp -= dealt;
   target.hitFlash = 0.18;
+  // Only the party's own injuries get a sound; a monster taking a hit is
+  // already covered by the swing that landed it.
+  if (target.side === 'party') signal(world, 'hurt', { name: target.name });
   if (world && world.floatText && !opts.silent) {
     world.floatText(target.x, target.y - 12, `-${Math.round(dealt)}`, crit ? '#ffdf6b' : '#ff9a8a');
   }
@@ -150,6 +159,7 @@ export function healActor(target, amount, world, opts = {}) {
   const before = target.hp;
   target.hp = Math.min(target.maxHp, target.hp + amount * scale);
   const healed = target.hp - before;
+  if (healed > 1 && target.side === 'party') signal(world, 'heal', { name: target.name });
   if (healed > 0.5 && world && world.floatText && !opts.silent) {
     world.floatText(target.x, target.y - 12, `+${Math.round(healed)}`, '#9ff0a8');
   }
@@ -164,6 +174,9 @@ export function basicAttack(actor, target, world) {
   actor.facing = target.x >= actor.x ? 1 : -1;
 
   const onHit = actor.onHit || null;
+  if (actor.side === 'party') {
+    signal(world, 'attack', { kind: actor.ranged ? actor.projectile || 'bolt' : 'melee' });
+  }
   if (actor.ranged) {
     world.spawnProjectile({
       kind: actor.projectile || 'bolt',
@@ -218,6 +231,7 @@ export function tryAbilities(actor, world) {
     const fired = evaluateAbility(actor, ability, world);
     if (fired) {
       actor.cooldowns[abilityId] = ability.cooldown;
+      if (actor.side === 'party') signal(world, 'ability', { id: ability.id });
       return { ability, ...fired };
     }
   }

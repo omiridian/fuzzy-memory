@@ -94,6 +94,7 @@ export function newGuild(rng) {
     startingLevel: 1,
     startScouted: 0,
     startBless: 0,
+    sound: true,
     owned: {},
     classes: Object.values(CLASSES).filter((c) => !c.locked).map((c) => c.id),
     upgrades: [],

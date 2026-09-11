@@ -155,6 +155,10 @@ export class GuildScene {
     if (name === 'tab') return this.setTab(TABS[index].id);
     if (name === 'descend') return this.descend();
     if (name === 'title') return this.app.openTitle();
+    if (name === 'sound') {
+      this.say(this.app.toggleSound() ? 'Sound on.' : 'Sound off.');
+      return;
+    }
     if (name === 'closeSheet') {
       this.sheet = null;
       return;
@@ -254,6 +258,12 @@ export class GuildScene {
         pad, 47, { size: 10, color: COLORS.gold });
       this.rects.title = { x: W - pad - 54, y: 12, w: 54, h: 26 };
       button(ctx, this.rects.title, 'Title', { hover: this.hover === 'title', size: 10 });
+      this.rects.sound = { x: W - pad - 90, y: 12, w: 32, h: 26 };
+      button(ctx, this.rects.sound, this.app.audio.muted ? '♪̸' : '♪', {
+        hover: this.hover === 'sound',
+        active: !this.app.audio.muted,
+        size: 13,
+      });
     } else {
       text(ctx, 'THE ADVENTURER GUILD', pad, 44, { size: 26, font: FONT_DISPLAY, color: '#e8d9b4' });
       const facts = [`${guild.gold} gold`, `${guild.runs} expeditions`, `deepest ${guild.deepest}`,
@@ -261,6 +271,12 @@ export class GuildScene {
       text(ctx, facts.join('   ·   '), pad, 62, { size: 11, color: COLORS.gold });
       this.rects.title = { x: W - 124, y: 26, w: 84, h: 26 };
       button(ctx, this.rects.title, 'Title', { hover: this.hover === 'title', size: 11 });
+      this.rects.sound = { x: W - 168, y: 26, w: 38, h: 26 };
+      button(ctx, this.rects.sound, this.app.audio.muted ? '♪̸' : '♪', {
+        hover: this.hover === 'sound',
+        active: !this.app.audio.muted,
+        size: 14,
+      });
     }
 
     const tabY = compact ? 58 : 78;

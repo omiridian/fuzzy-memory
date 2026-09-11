@@ -334,6 +334,7 @@ export function updateAdventurer(adv, world, dt) {
   if (adv.order === 'explore' || adv.order === 'interact') {
     if (!adv.fleeing && hpFrac < adv.fleeThreshold && nearbyFoes.length) {
       adv.fleeing = true;
+      if (world.signal) world.signal('flee', { name: adv.name });
       world.bark(adv, 'flee');
       world.note(`${adv.name} has had enough of this room.`, 'bad');
     } else if (adv.fleeing && (hpFrac > adv.fleeThreshold + 0.22 || !nearbyFoes.length)) {

@@ -8,6 +8,7 @@
 
 import { RNG } from './core/rng.js';
 import { Gestures, logicalSize } from './core/gestures.js';
+import { AudioDirector } from './audio/director.js';
 import { applyResults, newGuild, partyMembers, wipeSave } from './systems/guild.js';
 import { SaveSlot } from './systems/saves.js';
 import { TitleScene } from './scenes/title.js';
@@ -35,6 +36,11 @@ class App {
     const saved = this.saves.read();
     this.hadSave = !!saved;
     this.guild = saved || newGuild(this.rng);
+
+    // Browsers will not make a sound until the player has touched something,
+    // so the engine is built but silent until the first press.
+    this.audio = new AudioDirector();
+    this.audio.setEnabled(this.guild.sound !== false);
 
     this.bindInput();
     this.resize();
@@ -82,7 +88,11 @@ class App {
     const c = this.canvas;
     this.gestures = new Gestures({
       move: (x, y) => this.call('onPointerMove', x, y),
-      press: (x, y, button) => this.call('onPointerDown', x, y, button),
+      press: (x, y, button) => {
+        this.audio.unlock();
+        this.audio.play('ui_tap');
+        this.call('onPointerDown', x, y, button);
+      },
       release: (x, y, button) => this.call('onPointerUp', x, y, button),
       panStart: (x, y) => {
         const scene = this.scene;
@@ -143,6 +153,7 @@ class App {
         e.preventDefault();
       }
       this.keys[e.code] = true;
+      this.audio.unlock();
       this.call('onKeyDown', e.code, e);
     });
     window.addEventListener('keyup', (e) => {
@@ -184,6 +195,17 @@ class App {
 
     if (!this.error) {
       this.call('update', dt);
+      try {
+        this.audio.update(dt, this.scene && this.scene.exp);
+      } catch {
+        // Sound is never worth the game for. Turn it off, and leave a trace so
+        // a silent game is diagnosable rather than just mysterious.
+        if (!this.audioFailed) {
+          this.audioFailed = true;
+          console.warn('Deckdelve: sound turned off after an audio error.');
+        }
+        this.audio.setEnabled(false);
+      }
       const ctx = this.ctx;
       ctx.save();
       ctx.setTransform(this.scale * this.dpr, 0, 0, this.scale * this.dpr, 0, 0);
@@ -238,12 +260,25 @@ class App {
     this.openGuild();
   }
 
+  /** Turns sound on or off and remembers the choice with the guild. */
+  toggleSound() {
+    const on = this.audio.toggle();
+    this.guild.sound = on;
+    this.save();
+    if (on) this.audio.play('ui_select');
+    return on;
+  }
+
   openTitle() {
+    this.audio.detach();
+    this.audio.setScene('title');
     this.setScene(new TitleScene(this, { hasSave: true }));
   }
 
   openGuild() {
     this.save();
+    this.audio.detach();
+    this.audio.setScene('guild');
     this.setScene(new GuildScene(this, { guild: this.guild, rng: this.rng }));
   }
 
@@ -251,10 +286,15 @@ class App {
     const roster = partyMembers(this.guild);
     const deckCards = this.guild.deck.slice();
     const rng = new RNG(this.rng.int(0, 0xffffffff));
-    this.setScene(new ExpeditionScene(this, { rng, roster, deckCards, guild: this.guild }));
+    const scene = new ExpeditionScene(this, { rng, roster, deckCards, guild: this.guild });
+    this.audio.setScene('expedition');
+    this.audio.attach(scene.exp);
+    this.setScene(scene);
   }
 
   onExpeditionFinished(results) {
+    this.audio.detach();
+    this.audio.setScene(null);
     applyResults(this.guild, results, this.rng);
     this.save();
     this.setScene(new ResultsScene(this, { results, guild: this.guild }));

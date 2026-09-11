@@ -65,7 +65,7 @@ Orders apply to whoever is selected, or to everybody if nobody is.
 | `` ` `` | select the whole party · `Esc` clears the selection |
 | `Space` | pause · `Tab` game speed · `F` follow the party |
 | `WASD` / arrows | pan · mouse wheel zooms · middle-drag pans |
-| `?` | the same list, in game |
+| `M` | mute · `?` the same list, in game |
 
 ### On a phone
 
@@ -77,12 +77,38 @@ Orders apply to whoever is selected, or to everybody if nobody is.
 | **Rally** | arms a one-tap rally: press it, then tap where you want them |
 | Drag | pan the camera · pinch to zoom · **❚❚** to recentre |
 | Tap an order | Explore · Rally · Hold · Back · Rest · Use |
+| **❚❚** | pause, speed, sound, recentre, help |
 
 The layout is not a scaled-down desktop. A screen held upright gets its own
 arrangement — party across the top, orders and hand across the bottom, the
 chronicle over the map — with every target sized for a thumb, and the camera
 starts further out so more of the dungeon is in view. Turn the phone sideways
 and it switches to the desktop arrangement mid-frame.
+
+## Sound
+
+There is not an audio file in the project either. Every noise is synthesised at
+runtime out of oscillators and filtered noise — a sword is a band-passed noise
+burst with a square-wave thump under it, a room card landing is a sine drop, a
+stone grind and a hiss of dust.
+
+The score is generated as it plays. A step scheduler walks a sixteenth-note grid
+and decides bar by bar what each layer does, and the layers are wired to the
+run:
+
+- **Threat sets the tempo** and how much is playing. Unnoticed is a drone and a
+  limping bass pulse; around *Stirring* a slow modal line starts picking its way
+  over the top; at *Roused* something begins keeping time, and it speeds up; at
+  *Furious* a sour high shimmer comes in and the drone pulls out of tune.
+- **A fight brings the drums up**, and drops them when the room goes quiet.
+- **A boss gets a three-note motif** that repeats and closes in.
+- **The biome picks the mode.** A Corrupted Necropolis really does put the music
+  in Phrygian; Hallowed Ground goes Lydian, an Infernal Forge harmonic minor,
+  a Warren pentatonic. Build a different dungeon and it is in a different key.
+
+The title screen and the guild hall have their own pieces. Sound is off until
+your first tap — browsers insist — and the **♪** button or `M` turns it off for
+good; the choice is saved with the guild.
 
 ## Adventurers
 
@@ -190,14 +216,15 @@ Between runs you are in the Adventurer Guild:
 
 ```
 src/
+  audio/       synthesis engine, sound bank, generative score, event mapping
   core/        seedable RNG, gesture recogniser, small helpers
   data/        cards, enemies, classes, traits, equipment, biomes, events, names
   systems/     grid, dungeon, deck, threat, combat, ai, expedition, guild, saves
   render/      camera, dungeon view, actors, cards, HUD, primitives
   scenes/      title, guild, expedition, results
   main.js      canvas, input, scene stack
-tests/         164 tests, no browser required
-tools/         static server, bundler, desktop smoke test, phone touch test
+tests/         180 tests, no browser required
+tools/         static server, bundler, smoke test, touch test, audio check
 ```
 
 The split that matters: **nothing in `systems/` knows what a canvas is.** A
@@ -210,6 +237,8 @@ ended up inside a wall.
 npm test          # or: node tests/run.js
 npm run bundle    # one self-contained HTML file in dist/
 npm run mobile    # drives the bundle with real touch pointers in Chromium
+npm run audio     # measures what the game actually plays
+npm run sample    # records an excerpt of the score to a .wav
 ```
 
 `tools/bundle.mjs` flattens the modules into a single inline script — the same
@@ -222,6 +251,12 @@ dispatching genuine touch pointers: taps, press-and-hold, drags and a
 two-finger pinch. It asserts the things a screenshot cannot — that a tap on a
 card picks it up, that press-and-hold issues a rally, that pinching changes the
 zoom, that the debrief scrolls, and that the save survives a reload.
+
+`tools/audio-check.mjs` does the same for the ears. The unit tests only prove
+the audio layer never crashes without Web Audio; this boots a real browser,
+taps an analyser onto the master bus, and measures the peak level every sound
+and every piece of music produces. A recipe with a bad envelope is silent, not
+broken, and nothing but listening catches that.
 
 ## Notes on the design
 
@@ -243,6 +278,10 @@ zoom, that the debrief scrolls, and that the save survives a reload.
 - **Saves stay in the browser.** The runtime offers a shared document store,
   but one store shared by every viewer is the wrong shape here: two people
   opening the same link would fight over one guild and one wall of the dead.
+- **The simulation cannot hear itself.** Nothing under `systems/` imports the
+  audio layer. It calls `signal(name, data)`, which does nothing at all unless
+  something has attached — and a test asserts a run behaves identically either
+  way.
 
 ## Things that are deliberately not here yet
 

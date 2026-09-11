@@ -53,6 +53,9 @@ export class Expedition {
     this.goldFever = false;
     this.dead = [];
     this.newBiomeFlash = null;
+    // Anything that wants to hear about what happens down here attaches to
+    // this. Nothing in the simulation cares whether something has.
+    this.onEvent = null;
     this.paused = false;
     this.speed = 1;
     this.clearedBiomes = new Set();
@@ -168,6 +171,26 @@ export class Expedition {
     return this.chronicle.write(text, kind, meta);
   }
 
+  /** Tells whoever is listening that something just happened. */
+  signal(name, data) {
+    if (this.onEvent) this.onEvent(name, data);
+  }
+
+  /**
+   * The one way Threat goes up. Routing every source through here means a band
+   * change is announced once, in one voice, wherever it came from.
+   */
+  raiseThreat(amount, reason) {
+    return this.announceBand(this.threat.add(amount, reason));
+  }
+
+  announceBand(band) {
+    if (!band) return null;
+    this.note(`${band.name}. ${band.blurb}`, 'bad');
+    this.signal('threat_band', { band: band.name });
+    return band;
+  }
+
   bark(adv, kind) {
     const lines = BARKS[kind];
     if (!lines) return;
@@ -255,7 +278,8 @@ export class Expedition {
 
     const c = roomCenter(gx, gy);
     this.dust(c.x, c.y, '#b9a684', 26);
-    if (entry.card.threat) this.threat.add(entry.card.threat * PLACEMENT_THREAT, `built the ${room.name}`);
+    this.signal('card', { action: 'place' });
+    if (entry.card.threat) this.raiseThreat(entry.card.threat * PLACEMENT_THREAT, `built the ${room.name}`);
     this.note(`You set down the ${room.name}. ${room.blurb}`, 'plain');
 
     const fresh = this.dungeon.takeNewBiomes();
@@ -264,9 +288,10 @@ export class Expedition {
   }
 
   announceBiome(biome) {
+    this.signal('biome', { id: biome.id });
     this.note(biome.announce, 'biome');
     this.note(biome.blurb, 'plain');
-    this.threat.add(biome.threat || 0, `the ${biome.name} formed`);
+    this.raiseThreat(biome.threat || 0, `the ${biome.name} formed`);
     this.newBiomeFlash = { biome, t: 3.2 };
     if (biome.aura && biome.aura.greedPull) this.goldFever = true;
   }
@@ -274,7 +299,8 @@ export class Expedition {
   mulligan(handUid) {
     const result = this.deck.mulligan(handUid);
     if (result) {
-      this.threat.add(2, 'threw a card back into the dark');
+      this.signal('card', { action: 'throw' });
+      this.raiseThreat(2, 'threw a card back into the dark');
       this.note('You put a card back. The dungeon notices the indecision.', 'plain');
     }
     return result;
@@ -287,6 +313,7 @@ export class Expedition {
   onAdventurerEnteredRoom(adv, room) {
     if (!room.entered) {
       room.entered = true;
+      this.signal('room_enter', { room: room.card });
       this.note(`${adv.name} steps into the ${room.name}. ${room.discovery}`, 'good');
       this.bark(adv, 'enter_room');
       const plan = this.dungeon.reveal(room, { threat: this.threat.value, classHint: adv.classId });
@@ -332,8 +359,9 @@ export class Expedition {
         depth: room.depth,
       });
       this.addEnemy(boss, room);
+      this.signal('boss_intro', { id: plan.boss });
       this.note(def.intro, 'boss');
-      this.threat.add(8, `woke ${def.name}`);
+      this.raiseThreat(8, `woke ${def.name}`);
     }
 
     if (plan.spawns.length) {
@@ -379,6 +407,7 @@ export class Expedition {
 
   springHazard(adv, room) {
     room.hazardArmed = false;
+    this.signal('trap', { id: room.hazard });
     const event = getEvent(room.hazard);
     if (event) this.resolveEvent(adv, event, room);
   }
@@ -396,10 +425,11 @@ export class Expedition {
     const mult = (1 + (adv.goldBonus || 0)) * (biome && biome.aura && biome.aura.goldMult ? biome.aura.goldMult : 1);
     const gold = Math.round(loot.gold * mult);
     adv.carriedGold += gold;
+    this.signal('loot', { gear: !!loot.gearId, gold });
     this.note(`${adv.name} takes ${loot.name} — ${gold} gold.`, 'loot');
     this.bark(adv, 'loot');
     this.floatText(adv.x, adv.y - 18, `+${gold}g`, '#ffd76b');
-    this.threat.add(gold / 55, 'lifted treasure');
+    this.raiseThreat(gold / 55, 'lifted treasure');
 
     if (loot.gearId) {
       const gear = GEAR_BY_ID[loot.gearId];
@@ -437,7 +467,10 @@ export class Expedition {
 
     if (outcome.xp) {
       const res = grantXp(adv, outcome.xp);
-      if (res.levels.length) this.note(`${adv.name} reaches level ${adv.level}.`, 'good');
+      if (res.levels.length) {
+        this.signal('level', { name: adv.name, level: adv.level });
+        this.note(`${adv.name} reaches level ${adv.level}.`, 'good');
+      }
     }
     if (outcome.damage) {
       applyDamage(null, adv, outcome.damage, this, { kind: 'tick' });
@@ -446,7 +479,7 @@ export class Expedition {
       if (outcome.gold > 0) {
         adv.carriedGold += outcome.gold;
         this.floatText(adv.x, adv.y - 18, `+${outcome.gold}g`, '#ffd76b');
-        this.threat.add(outcome.gold / 60, 'took more than was offered');
+        this.raiseThreat(outcome.gold / 60, 'took more than was offered');
       } else {
         const paid = Math.min(adv.carriedGold, -outcome.gold);
         adv.carriedGold -= paid;
@@ -460,7 +493,7 @@ export class Expedition {
     if (outcome.status) {
       applyStatus(adv, outcome.status, outcome.duration || 10, outcome.power || 1, null);
     }
-    if (outcome.threat) this.threat.add(outcome.threat, 'disturbed something');
+    if (outcome.threat) this.raiseThreat(outcome.threat, 'disturbed something');
     if (outcome.reveal) this.revealAhead(outcome.reveal);
     if (outcome.gear) {
       const pool = gearFor(adv.classId, outcome.gear);
@@ -515,6 +548,7 @@ export class Expedition {
   killEnemy(enemy, killer) {
     this.kills += 1;
     if (enemy.elite) this.eliteKills += 1;
+    this.signal('kill', { side: 'foe', elite: enemy.elite, boss: enemy.boss, type: enemy.type });
     this.burst(enemy.x, enemy.y, 20, enemy.color);
     const room = this.dungeon.rooms.get(enemy.roomKey);
     if (room) room.enemyIds = room.enemyIds.filter((id) => id !== enemy.id);
@@ -526,11 +560,14 @@ export class Expedition {
     }
     for (const a of this.living) {
       const res = grantXp(a, enemy.xp);
-      if (res.levels.length) this.note(`${a.name} reaches level ${a.level}.`, 'good');
+      if (res.levels.length) {
+        this.signal('level', { name: a.name, level: a.level });
+        this.note(`${a.name} reaches level ${a.level}.`, 'good');
+      }
     }
     if (killer && killer.side === 'party') killer.runKills += 1;
 
-    this.threat.add(enemy.boss ? 6 : enemy.elite ? 1.4 : 0.45, `killed ${enemy.name}`);
+    this.raiseThreat(enemy.boss ? 6 : enemy.elite ? 1.4 : 0.45, `killed ${enemy.name}`);
 
     if (enemy.boss) {
       const def = BOSSES[enemy.type];
@@ -550,6 +587,7 @@ export class Expedition {
   }
 
   killAdventurer(adv, killer) {
+    this.signal('kill', { side: 'party', name: adv.name });
     adv.deathRoom = this.dungeon.rooms.get(adv.roomKey) || null;
     this.burst(adv.x, adv.y, 26, adv.color);
     this.bark(adv, 'death');
@@ -562,7 +600,7 @@ export class Expedition {
     if (killer && killer.name) this.note(`It was ${killer.name} that did it.`, 'death');
     if (adv.carriedGold > 0) this.note(`${Math.round(adv.carriedGold)} gold stays down here with them.`, 'bad');
     this.dead.push(adv);
-    this.threat.add(3, 'the dungeon took one of yours');
+    this.raiseThreat(3, 'the dungeon took one of yours');
 
     if (!this.living.length) this.finish('wiped');
   }
@@ -625,10 +663,10 @@ export class Expedition {
     this.chronicle.tick(dt);
 
     const deepest = this.dungeon.deepestEntered();
-    this.threat.tick(dt, { depth: deepest });
+    this.announceBand(this.threat.tick(dt, { depth: deepest }));
 
     // The timed draw is not worth a line in the chronicle — the hand shows it.
-    this.deck.tick(dt);
+    if (this.deck.tick(dt)) this.signal('card', { action: 'draw' });
 
     this.objectiveTimer -= dt;
     if (this.objectiveTimer <= 0) {
@@ -736,6 +774,7 @@ export class Expedition {
     const becameClear = this.dungeon.updateCleared(room);
     if (becameClear && !room.clearCredited) {
       room.clearCredited = true;
+      this.signal('room_clear', { room: room.card });
       const dealt = this.deck.drawOne();
       this.note(
         `The ${room.name} is done with. ${dealt ? `A card comes to hand: ${dealt.card.name}.` : 'Your hand is full.'}`,
@@ -776,6 +815,7 @@ export class Expedition {
   finish(outcome) {
     if (this.outcome) return;
     this.outcome = outcome;
+    this.signal('finish', { outcome });
     const survivors = this.living;
     const insurance = this.guild.insurance || 0.15;
 

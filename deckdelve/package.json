@@ -10,7 +10,9 @@
     "test": "node tests/run.js",
     "smoke": "node tools/smoke.mjs",
     "bundle": "node tools/bundle.mjs",
-    "mobile": "node tools/bundle.mjs && node tools/mobile-check.mjs"
+    "mobile": "node tools/bundle.mjs && node tools/mobile-check.mjs",
+    "audio": "node tools/bundle.mjs && node tools/audio-check.mjs",
+    "sample": "node tools/bundle.mjs && node tools/audio-sample.mjs"
   },
   "engines": {
     "node": ">=18"

@@ -275,6 +275,10 @@ export class ExpeditionScene {
           this.menuOpen = false;
           return;
         }
+        if (hit(R.sheet.sound, x, y)) {
+          this.app.toggleSound();
+          return;
+        }
         if (hit(R.sheet.follow, x, y)) {
           this.camera.recentre(this.exp.living.length ? this.exp.partyCentroid() : null, this.homeZoom);
           this.menuOpen = false;
@@ -312,6 +316,10 @@ export class ExpeditionScene {
       }
       if (R.top.help && hit(R.top.help, x, y)) {
         this.showHelp = true;
+        return;
+      }
+      if (R.top.sound && hit(R.top.sound, x, y)) {
+        this.app.toggleSound();
         return;
       }
     }
@@ -460,6 +468,10 @@ export class ExpeditionScene {
       this.exp.speed = this.exp.speed >= 3 ? 1 : this.exp.speed + 1;
       return;
     }
+    if (code === 'KeyM') {
+      this.say(this.app.toggleSound() ? 'Sound on.' : 'Sound off.');
+      return;
+    }
     if (code === 'Slash') this.showHelp = !this.showHelp;
   }
 
@@ -591,6 +603,7 @@ export class ExpeditionScene {
       selection: this.selection,
       rallyArmed: this.rallyArmed,
       follow: this.camera.follow,
+      sound: !this.app.audio.muted,
     };
     this.hudRects.top = drawTopBar(ctx, exp, L, state);
     this.hudRects.party = drawParty(ctx, exp, L, state);
@@ -600,7 +613,6 @@ export class ExpeditionScene {
     this.hudRects.hand = drawHandBar(ctx, exp, L, state);
     this.hudRects.orders = drawOrders(ctx, exp, L, state);
     drawBiomeFlash(ctx, exp, L);
-    this.hudRects.sheet = this.menuOpen ? drawMenuSheet(ctx, exp, L, state) : null;
 
     if (this.rallyArmed && !exp.outcome) {
       this.banner(ctx, L, 'Point at where you want them', '#ffd76b');
@@ -629,6 +641,8 @@ export class ExpeditionScene {
       );
       ctx.restore();
     }
+    // Modal layers go last, so nothing transient lands on top of them.
+    this.hudRects.sheet = this.menuOpen ? drawMenuSheet(ctx, exp, L, state) : null;
     if (this.showHelp) drawHelp(ctx, L, this.touch);
     if (exp.outcome) this.drawEndCurtain(ctx, L);
   }

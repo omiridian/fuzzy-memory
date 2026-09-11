@@ -187,6 +187,12 @@ export function drawTopBar(ctx, exp, layout, state) {
   button(ctx, buttons.pause, exp.paused ? '▶' : '❚❚', { hover: state.hover === 'pause' });
   buttons.help = { x: layout.w - bw * 2 - 106, y: by, w: 40, h: 24 };
   button(ctx, buttons.help, '?', { hover: state.hover === 'help', active: state.showHelp });
+  buttons.sound = { x: layout.w - bw * 2 - 150, y: by, w: 40, h: 24 };
+  button(ctx, buttons.sound, state.sound ? '♪' : '♪̸', {
+    hover: state.hover === 'sound',
+    active: state.sound,
+    size: 14,
+  });
   return buttons;
 }
 
@@ -228,6 +234,7 @@ export function drawMenuSheet(ctx, exp, layout, state) {
   const rows = [
     { id: 'speed', label: `Game speed — ${exp.speed}×` },
     { id: 'pause', label: exp.paused ? 'Resume' : 'Pause' },
+    { id: 'sound', label: state.sound ? 'Sound — on' : 'Sound — off' },
     { id: 'follow', label: state.follow ? 'Camera: following' : 'Camera: free — recentre' },
     { id: 'help', label: 'How this works' },
   ];
@@ -617,7 +624,7 @@ export function drawHelp(ctx, layout, touch) {
       ['Press and hold', 'on the map: rally there · on a monster: focus fire'],
       ['Rally', 'arms a one-tap rally — then tap where you want them'],
       ['Drag', 'move the camera  ·  pinch to zoom'],
-      ['❚❚', 'pause, game speed, recentre the camera'],
+      ['❚❚', 'pause, game speed, sound, recentre the camera'],
     ]
     : [
       ['1 – 6', 'pick a room card from your hand'],
@@ -627,7 +634,7 @@ export function drawHelp(ctx, layout, touch) {
       ['Right click', 'rally the selection there · on a monster: focus fire'],
       ['E H B V C', 'Explore · Hold · fall Back · Rest · Interact'],
       ['`', 'select the whole party  ·  Esc: drop the card / clear it'],
-      ['Space', 'pause  ·  Tab: game speed  ·  F: follow the party'],
+      ['Space', 'pause  ·  Tab: speed  ·  F: follow  ·  M: mute'],
       ['WASD', 'pan the camera  ·  wheel: zoom  ·  middle-drag: pan'],
     ];
   const h = 108 + rows.length * 22 + 46;
