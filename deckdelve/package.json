@@ -1,0 +1,16 @@
+{
+  "name": "deckdelve",
+  "version": "1.0.0",
+  "description": "Deckdelve — build a 2D top-down dungeon one room card at a time while a party of autonomous adventurers explores it in real time.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node tools/serve.mjs",
+    "serve": "node tools/serve.mjs",
+    "test": "node tests/run.js",
+    "smoke": "node tools/smoke.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -141,3 +141,20 @@ shop, save and reload — fails on any console error, and drops screenshots in
 Saves live in `localStorage` under `aetherlings.save.v1` and hold the party,
 storage boxes, bag, money, flags, quest state, dex records and position. The
 title screen offers Continue when one exists.
+
+---
+
+## Also in this repository: Deckdelve
+
+[`deckdelve/`](deckdelve/) is a separate game that shares the repo and nothing
+else — a 2D top-down roguelike where you build the dungeon out of room cards
+while a party of autonomous adventurers explores it in real time.
+
+```bash
+npm run deckdelve          # serves it on http://localhost:8080
+npm run test:deckdelve     # its own suite, 162 tests
+```
+
+`npm test` at the root now runs both suites. See
+[`deckdelve/README.md`](deckdelve/README.md) for the rules, the controls and
+how it is put together.

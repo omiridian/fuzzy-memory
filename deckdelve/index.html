@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#0b0a11" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="description" content="Deckdelve — build a dungeon one room card at a time while four adventurers explore it in real time." />
+    <title>Deckdelve</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #07060c;
+        color: #e8d9b4;
+        font-family: Georgia, "Times New Roman", serif;
+        overflow: hidden;
+        overscroll-behavior: none;
+        -webkit-text-size-adjust: 100%;
+        -webkit-tap-highlight-color: transparent;
+      }
+      #shell {
+        height: 100%;
+        height: 100dvh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+          env(safe-area-inset-left);
+      }
+      canvas {
+        display: block;
+        touch-action: none;
+        background: #07060c;
+        box-shadow: 0 0 60px rgba(0, 0, 0, 0.8);
+        cursor: default;
+      }
+      #nojs {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        text-align: center;
+        padding: 24px;
+        font-size: 15px;
+        line-height: 1.6;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="shell">
+      <canvas id="game" width="1024" height="640"></canvas>
+    </div>
+    <noscript>
+      <div id="nojs">
+        <p>
+          Deckdelve is a browser game and needs JavaScript.<br />
+          It also needs to be served over HTTP — opening the file directly will not work.
+        </p>
+      </div>
+    </noscript>
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>

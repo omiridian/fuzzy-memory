@@ -7,8 +7,10 @@
   "scripts": {
     "start": "node tools/serve.mjs",
     "serve": "node tools/serve.mjs",
-    "test": "node tests/run.js",
-    "dex": "node tools/dexdump.js"
+    "test": "node tests/run.js && node deckdelve/tests/run.js",
+    "dex": "node tools/dexdump.js",
+    "deckdelve": "node deckdelve/tools/serve.mjs",
+    "test:deckdelve": "node deckdelve/tests/run.js"
   },
   "engines": {
     "node": ">=18"
