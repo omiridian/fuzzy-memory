@@ -14,7 +14,12 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const outArg = process.argv.indexOf('--out');
-const outFile = outArg > 0 ? path.resolve(process.argv[outArg + 1]) : path.join(root, 'dist', 'deckdelve.html');
+// `--fragment` emits the page without its own <!doctype>, <html>, <head> or
+// <body>, for hosts that supply that skeleton themselves. The <title> and the
+// <style> lead, so a host scanning the top of the file still finds them.
+const fragment = process.argv.includes('--fragment');
+const defaultOut = fragment ? 'deckdelve.fragment.html' : 'deckdelve.html';
+const outFile = outArg > 0 ? path.resolve(process.argv[outArg + 1]) : path.join(root, 'dist', defaultOut);
 const entry = path.join(root, 'src', 'main.js');
 
 const IMPORT_RE = /^\s*import\s+([\s\S]*?)\s+from\s+['"](.+?)['"];?\s*$/gm;
@@ -136,11 +141,28 @@ const body = ordered
 const script = `${banner}\n(function () {\n'use strict';\n${body}\n})();\n`;
 
 const html = await readFile(path.join(root, 'index.html'), 'utf8');
-const out = html.replace(
-  /<script type="module" src="\.\/src\/main\.js"><\/script>/,
-  `<script>\n${script}\n</script>`,
-);
-if (out === html) throw new Error('index.html did not contain the module script tag to replace');
+const SCRIPT_TAG = /<script type="module" src="\.\/src\/main\.js"><\/script>/;
+if (!SCRIPT_TAG.test(html)) throw new Error('index.html did not contain the module script tag to replace');
+
+let out;
+if (fragment) {
+  const pick = (re, what) => {
+    const m = html.match(re);
+    if (!m) throw new Error(`index.html has no ${what}`);
+    return m[1];
+  };
+  const title = pick(/<title>([\s\S]*?)<\/title>/, '<title>');
+  const style = pick(/<style>([\s\S]*?)<\/style>/, '<style>');
+  const body = pick(/<body>([\s\S]*?)<\/body>/, '<body>');
+  out = [
+    `<title>${title}</title>`,
+    `<style>${style}</style>`,
+    body.replace(SCRIPT_TAG, `<script>\n${script}\n</script>`).trim(),
+    '',
+  ].join('\n');
+} else {
+  out = html.replace(SCRIPT_TAG, `<script>\n${script}\n</script>`);
+}
 
 await mkdir(path.dirname(outFile), { recursive: true });
 await writeFile(outFile, out, 'utf8');
