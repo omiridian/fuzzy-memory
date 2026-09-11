@@ -101,11 +101,12 @@ export function drawCard(ctx, rect, entry, state = {}) {
   ctx.restore();
 
   // The title decides the rest of the layout, so measure it first. A count
-  // badge sits in the top-right corner, so keep the words clear of it.
-  const titleWidth = w - (state.count === undefined ? 10 : 34);
-  const lines = wrap(ctx, card.name, titleWidth, { size: 11, font: FONT_DISPLAY }).slice(0, 2);
+  // badge sits in the top-right corner: the words keep clear of it, and so does
+  // the centre they are centred on.
+  const badge = state.count === undefined ? 0 : 26;
+  const lines = wrap(ctx, card.name, w - 10 - badge, { size: 11, font: FONT_DISPLAY }).slice(0, 2);
   lines.forEach((line, i) => {
-    text(ctx, line, x + w / 2, top + 13 + i * 11, {
+    text(ctx, line, x + (w - badge) / 2, top + 13 + i * 11, {
       align: 'center',
       size: 11,
       color: state.disabled ? COLORS.faint : COLORS.ink,
@@ -114,7 +115,10 @@ export function drawCard(ctx, rect, entry, state = {}) {
   });
 
   const hasTags = !!(card.tags && card.tags.length);
-  const footer = (hasTags ? 15 : 0) + (card.threat ? 13 : 0) + (state.cost !== undefined ? 14 : 0) + 8;
+  const footerText = state.footer || null;
+  const footer =
+    (hasTags ? 15 : 0) + (card.threat ? 13 : 0) +
+    (state.cost !== undefined ? 14 : 0) + (footerText ? 14 : 0) + 8;
   const planTop = top + 6 + lines.length * 11;
   const planSize = Math.max(26, Math.min(w - 18, h - (planTop - top) - footer));
   drawCardPlan(ctx, x + (w - planSize) / 2, planTop, planSize, doors, card);
@@ -168,8 +172,17 @@ export function drawCard(ctx, rect, entry, state = {}) {
     text(ctx, `×${state.count}`, x + w - 12.5, top + 13.5, { align: 'center', size: 9, color: COLORS.gold });
   }
 
+  if (footerText) {
+    text(ctx, footerText, x + w / 2, top + h - 6, {
+      align: 'center',
+      size: 9,
+      color: state.footerColor || '#9fd08a',
+      font: FONT_UI,
+    });
+  }
+
   if (state.cost !== undefined) {
-    text(ctx, `${state.cost}g`, x + w / 2, top + h - 6, {
+    text(ctx, `${state.cost}g`, x + w / 2, top + h - (footerText ? 20 : 6), {
       align: 'center',
       size: 11,
       color: state.affordable === false ? '#a06a5a' : COLORS.gold,
@@ -179,7 +192,8 @@ export function drawCard(ctx, rect, entry, state = {}) {
   }
 
   if (state.rotations > 1) {
-    text(ctx, '⟳', x + 7, top + 13, { size: 11, color: COLORS.dim });
+    // Bottom corner, clear of the title, which is centred and often two lines.
+    text(ctx, '⟳', x + w - 7, top + h - 6, { size: 11, color: COLORS.dim, align: 'right' });
   }
 
   return { x, y: top, w, h };

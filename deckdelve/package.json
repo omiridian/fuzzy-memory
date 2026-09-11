@@ -8,7 +8,9 @@
     "start": "node tools/serve.mjs",
     "serve": "node tools/serve.mjs",
     "test": "node tests/run.js",
-    "smoke": "node tools/smoke.mjs"
+    "smoke": "node tools/smoke.mjs",
+    "bundle": "node tools/bundle.mjs",
+    "mobile": "node tools/bundle.mjs && node tools/mobile-check.mjs"
   },
   "engines": {
     "node": ">=18"

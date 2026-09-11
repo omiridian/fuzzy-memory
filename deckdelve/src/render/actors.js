@@ -146,14 +146,24 @@ export function drawAdventurer(ctx, adv, time) {
   }
 }
 
-export function drawNameplate(ctx, adv) {
+/**
+ * Names are drawn at a fixed size on screen rather than in the world, so zoom
+ * does not change how big they are. Only the selection gets one: four bodies in
+ * one doorway with four names over them is a smear, and the party panel already
+ * says who is who.
+ */
+export function drawNameplate(ctx, adv, zoom = 1) {
   if (!adv.alive) return;
-  text(ctx, adv.name.split(' ')[0], adv.x, adv.y + 20, {
+  ctx.save();
+  ctx.translate(adv.x, adv.y + 18);
+  ctx.scale(1 / zoom, 1 / zoom);
+  text(ctx, adv.name.split(' ')[0], 0, 0, {
     align: 'center',
-    size: 9,
-    color: 'rgba(240,235,220,0.72)',
+    size: 10,
+    color: 'rgba(240,235,220,0.78)',
     font: FONT_UI,
   });
+  ctx.restore();
 }
 
 // ---------------------------------------------------------------------------
@@ -369,7 +379,7 @@ const BODIES = {
   },
 };
 
-export function drawEnemy(ctx, enemy, time) {
+export function drawEnemy(ctx, enemy, time, zoom = 1) {
   const s = 7 * (enemy.scale || 1);
   if (!enemy.alive) {
     ctx.save();
@@ -409,12 +419,11 @@ export function drawEnemy(ctx, enemy, time) {
   hpBar(ctx, enemy, enemy.x, enemy.y - s * 2 - 4, enemy.boss ? 44 : enemy.elite ? 28 : 20);
   statusPips(ctx, enemy, enemy.x, enemy.y - s * 2 - 11);
   if (enemy.boss) {
-    text(ctx, enemy.name, enemy.x, enemy.y - s * 2 - 16, {
-      align: 'center',
-      size: 10,
-      color: '#ffb9a0',
-      weight: 'bold',
-    });
+    ctx.save();
+    ctx.translate(enemy.x, enemy.y - s * 2 - 16);
+    ctx.scale(1 / zoom, 1 / zoom);
+    text(ctx, enemy.name, 0, 0, { align: 'center', size: 11, color: '#ffb9a0', weight: 'bold' });
+    ctx.restore();
   }
 }
 

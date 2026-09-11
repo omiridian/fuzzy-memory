@@ -1,40 +1,53 @@
 // Boot: the canvas, the input map, the scene stack, and the glue between the
 // guild hall and whatever is about to happen underneath it.
+//
+// The game is drawn in its own coordinate space and scaled to fill whatever
+// screen it is given. That space is not fixed: a phone held upright gets a tall,
+// narrow one with thumb-sized controls, a desktop gets a wide one. Scenes ask
+// the app for `width`, `height` and `compact` and lay themselves out to suit.
 
 import { RNG } from './core/rng.js';
-import { loadGuild, newGuild, saveGuild, applyResults, partyMembers, wipeSave } from './systems/guild.js';
+import { Gestures, logicalSize } from './core/gestures.js';
+import { applyResults, newGuild, partyMembers, wipeSave } from './systems/guild.js';
+import { SaveSlot } from './systems/saves.js';
 import { TitleScene } from './scenes/title.js';
 import { GuildScene } from './scenes/guild.js';
 import { ExpeditionScene } from './scenes/expedition.js';
 import { ResultsScene } from './scenes/results.js';
 import { COLORS, text } from './render/ui.js';
 
-const LOGICAL_WIDTH = 1024;
-const LOGICAL_HEIGHT = 640;
-
 class App {
   constructor(canvas) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
-    this.width = LOGICAL_WIDTH;
-    this.height = LOGICAL_HEIGHT;
+    this.width = 1024;
+    this.height = 640;
+    this.compact = false;
     this.scale = 1;
-    this.offsetX = 0;
-    this.offsetY = 0;
+    this.dpr = 1;
     this.keys = {};
     this.scene = null;
     this.rng = new RNG(Date.now());
     this.rawDt = 0.016;
     this.error = null;
 
-    this.guild = loadGuild();
-    if (!this.guild) this.guild = newGuild(this.rng);
+    this.saves = new SaveSlot();
+    const saved = this.saves.read();
+    this.hadSave = !!saved;
+    this.guild = saved || newGuild(this.rng);
 
     this.bindInput();
     this.resize();
     window.addEventListener('resize', () => this.resize());
-    this.setScene(new TitleScene(this, { hasSave: !!loadGuild() }));
+    window.addEventListener('orientationchange', () => setTimeout(() => this.resize(), 120));
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', () => this.resize());
+
+    this.setScene(new TitleScene(this, { hasSave: this.hadSave }));
     requestAnimationFrame((t) => this.loop(t));
+  }
+
+  get touching() {
+    return this.gestures ? this.gestures.touching : false;
   }
 
   // -------------------------------------------------------------------------
@@ -42,21 +55,19 @@ class App {
   // -------------------------------------------------------------------------
 
   resize() {
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const availW = window.innerWidth;
-    const availH = window.innerHeight;
-    const scale = Math.min(availW / LOGICAL_WIDTH, availH / LOGICAL_HEIGHT);
-    const cssW = Math.floor(LOGICAL_WIDTH * scale);
-    const cssH = Math.floor(LOGICAL_HEIGHT * scale);
-    this.canvas.style.width = `${cssW}px`;
-    this.canvas.style.height = `${cssH}px`;
-    this.canvas.width = Math.floor(cssW * dpr);
-    this.canvas.height = Math.floor(cssH * dpr);
-    this.scale = scale;
-    this.dpr = dpr;
-    const rect = this.canvas.getBoundingClientRect();
-    this.offsetX = rect.left;
-    this.offsetY = rect.top;
+    const vw = Math.max(240, window.innerWidth);
+    const vh = Math.max(240, window.innerHeight);
+    const size = logicalSize(vw, vh);
+    this.width = size.w;
+    this.height = size.h;
+    this.compact = size.compact;
+    this.scale = vw / size.w;
+    this.dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+    this.canvas.style.width = `${vw}px`;
+    this.canvas.style.height = `${Math.round(size.h * this.scale)}px`;
+    this.canvas.width = Math.round(vw * this.dpr);
+    this.canvas.height = Math.round(size.h * this.scale * this.dpr);
   }
 
   toLogical(event) {
@@ -69,25 +80,55 @@ class App {
 
   bindInput() {
     const c = this.canvas;
+    this.gestures = new Gestures({
+      move: (x, y) => this.call('onPointerMove', x, y),
+      press: (x, y, button) => this.call('onPointerDown', x, y, button),
+      release: (x, y, button) => this.call('onPointerUp', x, y, button),
+      panStart: (x, y) => {
+        const scene = this.scene;
+        return scene && scene.onDragStart ? scene.onDragStart(x, y) : null;
+      },
+      pan: (dx, dy, kind) => {
+        const scene = this.scene;
+        if (!scene) return;
+        if (kind === 'scroll' && scene.onDragScroll) scene.onDragScroll(dy / this.scale);
+        else if (scene.onDragPan) scene.onDragPan(dx / this.scale, dy / this.scale);
+      },
+      zoom: (factor, x, y) => this.call('onZoom', factor, x, y),
+      longPressStart: () => {
+        if (navigator.vibrate) {
+          try {
+            navigator.vibrate(12);
+          } catch {
+            /* some browsers refuse; it is only a nicety */
+          }
+        }
+      },
+    });
+
     c.addEventListener('contextmenu', (e) => e.preventDefault());
     c.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
       try {
         c.setPointerCapture(e.pointerId);
       } catch {
         /* some browsers refuse capture for synthetic pointers; harmless */
       }
       const p = this.toLogical(e);
-      this.call('onPointerMove', p.x, p.y);
-      this.call('onPointerDown', p.x, p.y, e.button);
+      this.gestures.down(e.pointerId, p.x, p.y, e.button, e.pointerType !== 'mouse');
     });
     c.addEventListener('pointermove', (e) => {
       const p = this.toLogical(e);
-      this.call('onPointerMove', p.x, p.y);
+      this.gestures.move(e.pointerId, p.x, p.y);
     });
-    c.addEventListener('pointerup', (e) => {
+    const release = (e) => {
       const p = this.toLogical(e);
-      this.call('onPointerUp', p.x, p.y, e.button);
-    });
+      this.gestures.up(e.pointerId, p.x, p.y, e.button);
+    };
+    c.addEventListener('pointerup', release);
+    c.addEventListener('pointercancel', (e) => this.gestures.cancel(e.pointerId));
+    c.addEventListener('lostpointercapture', (e) => this.gestures.cancel(e.pointerId));
+
     c.addEventListener(
       'wheel',
       (e) => {
@@ -146,7 +187,6 @@ class App {
       const ctx = this.ctx;
       ctx.save();
       ctx.setTransform(this.scale * this.dpr, 0, 0, this.scale * this.dpr, 0, 0);
-      ctx.imageSmoothingEnabled = true;
       try {
         if (this.scene) this.scene.draw(ctx);
       } catch (err) {
@@ -167,12 +207,12 @@ class App {
     ctx.fillRect(0, 0, this.width, this.height);
     text(ctx, 'Something in the dungeon broke.', this.width / 2, this.height / 2 - 20, {
       align: 'center',
-      size: 20,
+      size: 18,
       color: '#d5646a',
     });
     text(ctx, String(this.error && this.error.message), this.width / 2, this.height / 2 + 8, {
       align: 'center',
-      size: 12,
+      size: 11,
       color: COLORS.dim,
     });
     text(ctx, 'Reload the page to start again.', this.width / 2, this.height / 2 + 32, {
@@ -188,7 +228,7 @@ class App {
   // -------------------------------------------------------------------------
 
   save() {
-    saveGuild(this.guild);
+    this.saves.write(this.guild);
   }
 
   newGame() {
@@ -211,14 +251,7 @@ class App {
     const roster = partyMembers(this.guild);
     const deckCards = this.guild.deck.slice();
     const rng = new RNG(this.rng.int(0, 0xffffffff));
-    this.setScene(
-      new ExpeditionScene(this, {
-        rng,
-        roster,
-        deckCards,
-        guild: this.guild,
-      }),
-    );
+    this.setScene(new ExpeditionScene(this, { rng, roster, deckCards, guild: this.guild }));
   }
 
   onExpeditionFinished(results) {

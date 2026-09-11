@@ -5,11 +5,11 @@ import { clamp, lerp } from '../core/util.js';
 import { ROOM_PX } from '../systems/grid.js';
 
 export class Camera {
-  constructor(viewport) {
+  constructor(viewport, startZoom = 1.25) {
     this.x = ROOM_PX / 2;
     this.y = ROOM_PX / 2;
-    this.zoom = 1.25;
-    this.targetZoom = 1.25;
+    this.zoom = startZoom;
+    this.targetZoom = startZoom;
     this.follow = true;
     this.viewport = viewport;
     this.shake = 0;
@@ -44,8 +44,13 @@ export class Camera {
   }
 
   zoomBy(delta, aroundScreen) {
+    this.scaleBy(delta > 0 ? 0.88 : 1.13, aroundScreen);
+  }
+
+  /** Multiplies the zoom, keeping the world point under `aroundScreen` put. */
+  scaleBy(factor, aroundScreen) {
     const before = aroundScreen ? this.toWorld(aroundScreen.x, aroundScreen.y) : null;
-    this.targetZoom = clamp(this.targetZoom * (delta > 0 ? 0.88 : 1.13), 0.45, 2.4);
+    this.targetZoom = clamp(this.targetZoom * factor, 0.4, 2.6);
     this.zoom = this.targetZoom;
     if (before) {
       const after = this.toWorld(aroundScreen.x, aroundScreen.y);
@@ -53,6 +58,19 @@ export class Camera {
       this.y += before.y - after.y;
       this.follow = false;
     }
+  }
+
+  /**
+   * Puts the camera back on the party and leaves it there. Passing a zoom also
+   * undoes an over-enthusiastic pinch, which on a phone is most of them.
+   */
+  recentre(focus, zoom) {
+    this.follow = true;
+    if (focus) {
+      this.x = focus.x;
+      this.y = focus.y;
+    }
+    if (zoom) this.targetZoom = zoom;
   }
 
   /** Applies the camera to a context; caller must restore. */

@@ -150,9 +150,13 @@ title screen offers Continue when one exists.
 else — a 2D top-down roguelike where you build the dungeon out of room cards
 while a party of autonomous adventurers explores it in real time.
 
+It plays with a mouse and keyboard on a desktop, and with touch on a phone —
+tap to build, press-and-hold to give orders, pinch to zoom — with a layout that
+rearranges itself for a screen held upright.
+
 ```bash
 npm run deckdelve          # serves it on http://localhost:8080
-npm run test:deckdelve     # its own suite, 162 tests
+npm run test:deckdelve     # its own suite, 164 tests
 ```
 
 `npm test` at the root now runs both suites. See

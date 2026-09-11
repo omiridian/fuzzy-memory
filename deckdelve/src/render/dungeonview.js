@@ -2,7 +2,7 @@
 // first time they are drawn in a given state, so a forty-room dungeon costs
 // forty blits rather than three thousand rectangles.
 
-import { DOOR_PX, ROOM_PX, TILE, WALL, hasDoor as maskHasDoor, roomBounds, roomCenter } from '../systems/grid.js';
+import { DOOR_PX, ROOM_PX, TILE, WALL, hasDoor, roomBounds, roomCenter } from '../systems/grid.js';
 import { SIDES } from '../data/cards.js';
 import { biomeOf } from '../systems/biomes.js';
 import { FONT_DISPLAY, text } from './ui.js';
@@ -27,8 +27,9 @@ function hash3(a, b, c) {
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 }
 
-function hasDoor(room, side) {
-  return maskHasDoor(room.doors, side);
+/** Reads a room's own door mask by side index. */
+function roomHasDoor(room, side) {
+  return hasDoor(room.doors, side);
 }
 
 // ---------------------------------------------------------------------------
@@ -62,7 +63,7 @@ function bakeRoom(room) {
 
   // Floor carried through each doorway, so two rooms read as one place.
   for (let side = 0; side < 4; side++) {
-    if (!hasDoor(room, side)) continue;
+    if (!roomHasDoor(room, side)) continue;
     const gap = doorGapRect(side);
     drawTiles(g, room, palette, gap.x, gap.y, gap.w, gap.h, known);
   }
@@ -165,7 +166,7 @@ function drawWalls(g, room) {
   const segments = [];
   const half = (ROOM_PX - DOOR_PX) / 2;
   for (let side = 0; side < 4; side++) {
-    const open = hasDoor(room, side);
+    const open = roomHasDoor(room, side);
     if (side === 0 || side === 2) {
       const y = side === 0 ? 0 : ROOM_PX - WALL;
       if (open) {
@@ -201,7 +202,7 @@ function drawWalls(g, room) {
   }
   // Door jambs
   for (let side = 0; side < 4; side++) {
-    if (!hasDoor(room, side)) continue;
+    if (!roomHasDoor(room, side)) continue;
     const r = doorGapRect(side);
     g.fillStyle = '#4b4459';
     if (side === 0 || side === 2) {

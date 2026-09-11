@@ -51,6 +51,10 @@ moment to turn round and leave.
 
 ## Controls
 
+Orders apply to whoever is selected, or to everybody if nobody is.
+
+### On a desktop
+
 | | |
 |---|---|
 | `1` – `6` | pick a room card from your hand |
@@ -60,10 +64,25 @@ moment to turn round and leave.
 | `E` `H` `B` `V` `C` | Explore · Hold · fall Back · Rest · Interact |
 | `` ` `` | select the whole party · `Esc` clears the selection |
 | `Space` | pause · `Tab` game speed · `F` follow the party |
-| `WASD` / arrows | pan · mouse wheel zooms |
+| `WASD` / arrows | pan · mouse wheel zooms · middle-drag pans |
 | `?` | the same list, in game |
 
-Orders apply to whoever is selected, or to everybody if nobody is.
+### On a phone
+
+| | |
+|---|---|
+| Tap a card, tap a cell | build the room — legal cells are outlined in green |
+| Tap a portrait | select them, and read their traits and gear |
+| Press and hold the map | rally there · on a monster, focus fire |
+| **Rally** | arms a one-tap rally: press it, then tap where you want them |
+| Drag | pan the camera · pinch to zoom · **❚❚** to recentre |
+| Tap an order | Explore · Rally · Hold · Back · Rest · Use |
+
+The layout is not a scaled-down desktop. A screen held upright gets its own
+arrangement — party across the top, orders and hand across the bottom, the
+chronicle over the map — with every target sized for a thumb, and the camera
+starts further out so more of the dungeon is in view. Turn the phone sideways
+and it switches to the desktop arrangement mid-frame.
 
 ## Adventurers
 
@@ -171,13 +190,14 @@ Between runs you are in the Adventurer Guild:
 
 ```
 src/
-  core/        seedable RNG, small helpers
+  core/        seedable RNG, gesture recogniser, small helpers
   data/        cards, enemies, classes, traits, equipment, biomes, events, names
-  systems/     grid, dungeon, deck, threat, combat, ai, expedition, guild, log
+  systems/     grid, dungeon, deck, threat, combat, ai, expedition, guild, saves
   render/      camera, dungeon view, actors, cards, HUD, primitives
   scenes/      title, guild, expedition, results
   main.js      canvas, input, scene stack
-tests/         162 tests, no browser required
+tests/         164 tests, no browser required
+tools/         static server, bundler, desktop smoke test, phone touch test
 ```
 
 The split that matters: **nothing in `systems/` knows what a canvas is.** A
@@ -188,7 +208,20 @@ ended up inside a wall.
 
 ```bash
 npm test          # or: node tests/run.js
+npm run bundle    # one self-contained HTML file in dist/
+npm run mobile    # drives the bundle with real touch pointers in Chromium
 ```
+
+`tools/bundle.mjs` flattens the modules into a single inline script — the same
+game in one file, for dropping somewhere that serves one file. It refuses to
+build if two modules declare the same top-level name rather than letting one
+silently shadow the other.
+
+`tools/mobile-check.mjs` plays the bundle at 390×844, 844×390 and 1280×800,
+dispatching genuine touch pointers: taps, press-and-hold, drags and a
+two-finger pinch. It asserts the things a screenshot cannot — that a tap on a
+card picks it up, that press-and-hold issues a rally, that pinching changes the
+zoom, that the debrief scrolls, and that the save survives a reload.
 
 ## Notes on the design
 
@@ -201,8 +234,15 @@ npm test          # or: node tests/run.js
 - **One chest, one pair of hands.** Interactables are claimed, so four people
   never converge on the same barrel and shove each other out of it forever.
 - **The chronicle is the game's memory.** Most of the humour and all of the
-  emergent stories live in that feed on the right: who opened what, who ran,
-  and what it was that got them.
+  emergent stories live in that feed: who opened what, who ran, and what it was
+  that got them.
+- **A tap is not a hover.** A mouse can hover, so on a desktop every control
+  explains itself for free. A tap is already an action, so on a phone only a
+  deliberate press-and-hold — or a tap on a portrait — opens a panel, because
+  anything else leaves it sitting on top of the buttons underneath.
+- **Saves stay in the browser.** The runtime offers a shared document store,
+  but one store shared by every viewer is the wrong shape here: two people
+  opening the same link would fight over one guild and one wall of the dead.
 
 ## Things that are deliberately not here yet
 
