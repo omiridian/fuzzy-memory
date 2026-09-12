@@ -223,7 +223,7 @@ src/
   render/      camera, dungeon view, actors, cards, HUD, primitives
   scenes/      title, guild, expedition, results
   main.js      canvas, input, scene stack
-tests/         180 tests, no browser required
+tests/         192 tests, no browser required
 tools/         static server, bundler, smoke test, touch test, audio check
 ```
 
@@ -261,8 +261,18 @@ broken, and nothing but listening catches that.
 ## Notes on the design
 
 - **Sight is room-shaped.** Nobody targets through masonry. The one exception is
-  a doorway, where two bodies either side of the same gap can reach each other —
-  which is what makes holding a door mean something.
+  a doorway, and it is deliberately tight: both bodies have to be standing *in*
+  the gap, close enough that a sword reaches. A wider rule reads as more
+  generous and plays as an exploit — an archer shooting something physically
+  unable to cross and answer.
+- **Monsters guard a room; they do not live in a cage.** They will follow you
+  one room from home — two for a boss — and give up after about seven seconds,
+  then go back to guarding the thing they were guarding. Without the clock,
+  every room the party walks past adds another permanent pursuer and the whole
+  dungeon ends up in one corridor behind them.
+- **Being shot is being noticed.** Damage makes a monster turn on whoever dealt
+  it, whatever its aggro radius says. Outranging something is a tactic; being
+  invisible while you do it was a bug.
 - **Contents are rolled on entry, not on placement.** What is in a room is
   decided by the Threat at the moment somebody opens the door, so a room you
   built early and visit late is worse than it would have been.

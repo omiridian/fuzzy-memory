@@ -133,6 +133,7 @@ export function applyDamage(attacker, target, amount, world, opts = {}) {
 
   target.hp -= dealt;
   target.hitFlash = 0.18;
+  if (world && world.provoke) world.provoke(target, attacker);
   // Only the party's own injuries get a sound; a monster taking a hit is
   // already covered by the swing that landed it.
   if (target.side === 'party') signal(world, 'hurt', { name: target.name });

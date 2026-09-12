@@ -157,7 +157,7 @@ runtime; there is no audio file in it either.
 
 ```bash
 npm run deckdelve          # serves it on http://localhost:8080
-npm run test:deckdelve     # its own suite, 180 tests
+npm run test:deckdelve     # its own suite, 192 tests
 ```
 
 `npm test` at the root now runs both suites. See

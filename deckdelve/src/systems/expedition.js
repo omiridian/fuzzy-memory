@@ -8,7 +8,7 @@ import { Dungeon } from './dungeon.js';
 import { Deck } from './deck.js';
 import { Threat } from './threat.js';
 import { Chronicle } from './log.js';
-import { choosePartyObjective, updateAdventurer, updateEnemy } from './ai.js';
+import { choosePartyObjective, updateAdventurer, updateEnemy, withinLeash } from './ai.js';
 import { applyDamage, applyStatus, healActor } from './combat.js';
 import { createEnemy, deployAdventurer, grantXp } from './actors.js';
 import { biomeOf } from './biomes.js';
@@ -25,6 +25,8 @@ const OBJECTIVE_INTERVAL = 0.7;
 // A card's printed Threat is its risk rating; this is how much of it the
 // dungeon actually notices when you build the thing.
 const PLACEMENT_THREAT = 0.6;
+// How close two bodies either side of a doorway must be to reach each other.
+const DOORWAY_REACH = 26;
 
 export class Expedition {
   constructor({ rng, roster, deckCards, guild }) {
@@ -89,9 +91,10 @@ export class Expedition {
 
   /**
    * Sight is room-shaped: nobody targets through masonry. The one exception is
-   * a doorway, where two bodies standing either side of the same gap can reach
-   * each other — which is how holding a door is supposed to work, and stops a
-   * monster reaching through a wall at somebody who cannot reach back.
+   * a doorway, and it is deliberately tight — both bodies have to be standing
+   * *in* the gap, close enough that a sword reaches. It used to allow half a
+   * room of clearance either side, which let an archer shoot something that was
+   * physically unable to cross and reach back.
    */
   canEngage(a, b) {
     if (a.roomKey === b.roomKey) return true;
@@ -102,7 +105,25 @@ export class Expedition {
     const side = SIDES.findIndex((s) => s.dx === rb.x - ra.x && s.dy === rb.y - ra.y);
     if (side < 0 || !hasDoor(ra.doors, side)) return false;
     const gap = doorPoint(ra.x, ra.y, side);
-    return dist(a.x, a.y, gap.x, gap.y) <= 40 && dist(b.x, b.y, gap.x, gap.y) <= 40;
+    return dist(a.x, a.y, gap.x, gap.y) <= DOORWAY_REACH && dist(b.x, b.y, gap.x, gap.y) <= DOORWAY_REACH;
+  }
+
+  /**
+   * Something just hurt this monster. Whatever it was looking at before, it is
+   * looking at its attacker now — aggro radius and line of sight included.
+   * Outranging a monster's notice is a tactic; being invisible while doing it
+   * was a bug.
+   */
+  provoke(target, attacker) {
+    if (!target || !attacker || target.side !== 'foe' || attacker.side !== 'party') return;
+    if (!target.alive || !attacker.alive) return;
+    if (!withinLeash(this, target, attacker.roomKey)) return;
+    const current = target.targetId ? this.partyById(target.targetId) : null;
+    if (current && current.alive && current !== attacker) {
+      // Already busy with somebody; do not let a stray arrow pull it off.
+      return;
+    }
+    target.targetId = attacker.id;
   }
 
   hostilesNear(actor, radius) {
@@ -550,7 +571,8 @@ export class Expedition {
     if (enemy.elite) this.eliteKills += 1;
     this.signal('kill', { side: 'foe', elite: enemy.elite, boss: enemy.boss, type: enemy.type });
     this.burst(enemy.x, enemy.y, 20, enemy.color);
-    const room = this.dungeon.rooms.get(enemy.roomKey);
+    // Its home room owns it, wherever it happened to die.
+    const room = this.dungeon.rooms.get(enemy.homeKey || enemy.roomKey);
     if (room) room.enemyIds = room.enemyIds.filter((id) => id !== enemy.id);
 
     const gold = Math.round(this.rng.int(enemy.gold[0], enemy.gold[1]) * enemy.goldMult);

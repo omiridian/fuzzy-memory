@@ -236,7 +236,8 @@ group('expedition: consequences', () => {
     const rng = new RNG(34);
     const exp = makeRun(34);
     run(exp, 120, rng);
-    const results = exp.finish('extracted');
+    // The run may already have ended itself; either way there is a debrief.
+    const results = exp.results || exp.finish('extracted');
     for (const field of ['outcome', 'gold', 'gear', 'survivors', 'dead', 'depth', 'rooms', 'kills', 'threat', 'biomes']) {
       assert(results[field] !== undefined, `results carry ${field}`);
     }

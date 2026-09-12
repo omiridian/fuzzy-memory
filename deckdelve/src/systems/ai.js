@@ -8,13 +8,17 @@
 import { TRAITS } from '../data/traits.js';
 import { dist, clamp } from '../core/util.js';
 import {
-  ROOM_PX, clampToRoom, findPath, key, roomCenter, waypointsAlong, worldToGrid,
+  ROOM_PX, clampToRoom, doorPoint, findPath, key, linkedNeighbors, roomCenter, waypointsAlong, worldToGrid,
 } from './grid.js';
+import { SIDES } from '../data/cards.js';
 import { basicAttack, statusMods, tickCooldowns, tickStatuses, tryAbilities, tryMonsterAbilities } from './combat.js';
 
 const ARRIVE = 6;
 const INTERACT_TIME = 2.4;
 const SEPARATION = 15;
+const CHASE_LIMIT = 7; // seconds a monster will spend outside its own room
+const CHASE_REST = 8; // and how long it then sulks at home before trying again
+const CHASE_SPEED = 0.85;
 
 /** Multiplicative trait fields (cohesion, lootSpeed…) fold with a product. */
 function traitProduct(traitIds, field) {
@@ -554,6 +558,62 @@ function interactBehaviour(adv, world, dt, speed, room) {
 // Monsters
 // ---------------------------------------------------------------------------
 
+/**
+ * How far a monster will follow you from its own room. One room for most of
+ * them, two for a boss. Beyond that it gives up and goes back to guarding the
+ * thing it was guarding.
+ */
+export function withinLeash(world, enemy, roomKey) {
+  const homeKey = enemy.homeKey || enemy.roomKey;
+  if (roomKey === homeKey) return true;
+  const home = world.dungeon.rooms.get(homeKey);
+  const room = world.dungeon.rooms.get(roomKey);
+  if (!home || !room) return false;
+  return Math.abs(home.x - room.x) + Math.abs(home.y - room.y) <= (enemy.leash || 1);
+}
+
+/**
+ * Walks toward a point that may be in another room, steering through the
+ * doorway rather than into the wall beside it. One room at a time — a monster
+ * is not pathfinding, it is following somebody it can hear.
+ */
+function steerToward(enemy, world, roomKey, point, speed, dt, stopAt = 0) {
+  if (enemy.roomKey === roomKey) {
+    moveToward(enemy, point.x, point.y, speed, dt, stopAt);
+    return true;
+  }
+  const here = world.dungeon.rooms.get(enemy.roomKey);
+  if (!here) return false;
+  const link = linkedNeighbors(world.dungeon.rooms, here.x, here.y).find((n) => key(n.x, n.y) === roomKey);
+  if (!link) return false;
+  // Aim a little past the gap, so they commit to going through it.
+  const side = SIDES[link.side];
+  const gap = doorPoint(here.x, here.y, link.side);
+  moveToward(enemy, gap.x + side.dx * 12, gap.y + side.dy * 12, speed, dt, 0);
+  return true;
+}
+
+/** Keeps a monster inside whatever room it is entitled to be standing in. */
+function confineEnemy(enemy, world) {
+  const g = worldToGrid(enemy.x, enemy.y);
+  const k = key(g.x, g.y);
+  const entered = world.dungeon.rooms.get(k);
+  if (entered && withinLeash(world, enemy, k)) {
+    const fixed = clampToRoom(entered, g.x, g.y, enemy.x, enemy.y, 6);
+    enemy.x = fixed.x;
+    enemy.y = fixed.y;
+    enemy.roomKey = k;
+    return;
+  }
+  // Off the map, or past the leash: put it back in the room it came from.
+  const room = world.dungeon.rooms.get(enemy.roomKey) || world.dungeon.rooms.get(enemy.homeKey);
+  if (!room) return;
+  const fixed = clampToRoom(room, room.x, room.y, enemy.x, enemy.y, 6);
+  enemy.x = clamp(fixed.x, room.x * ROOM_PX + 10, room.x * ROOM_PX + ROOM_PX - 10);
+  enemy.y = clamp(fixed.y, room.y * ROOM_PX + 10, room.y * ROOM_PX + ROOM_PX - 10);
+  enemy.roomKey = room.key;
+}
+
 export function updateEnemy(enemy, world, dt) {
   if (!enemy.alive) return;
   tickStatuses(enemy, dt, world);
@@ -568,10 +628,29 @@ export function updateEnemy(enemy, world, dt) {
 
   tryMonsterAbilities(enemy, world, dt);
 
+  // Pursuit runs on a clock. A monster will follow you out of its room for a
+  // while and then remember it was supposed to be guarding something — without
+  // this, every room the party walks past adds another permanent pursuer and
+  // the whole dungeon ends up in one corridor behind them.
+  const homeKey = enemy.homeKey || enemy.roomKey;
+  if (enemy.roomKey !== homeKey) {
+    enemy.chaseTime += dt;
+    if (enemy.chaseTime > (enemy.boss ? CHASE_LIMIT * 2 : CHASE_LIMIT)) enemy.chaseCooldown = CHASE_REST;
+  } else {
+    enemy.chaseTime = 0;
+    enemy.chaseCooldown = Math.max(0, enemy.chaseCooldown - dt);
+  }
+  const mayPursue = enemy.chaseCooldown <= 0 && enemy.chaseTime <= (enemy.boss ? CHASE_LIMIT * 2 : CHASE_LIMIT);
+
+  // Hold on to a quarry while it is worth following. Losing sight of somebody
+  // through a doorway is not the same as losing them — that is what a chase is.
   let target = enemy.targetId ? world.partyById(enemy.targetId) : null;
-  if (target && (!target.alive || !world.canEngage(enemy, target) ||
-      dist(enemy.x, enemy.y, target.x, target.y) > enemy.aggro * 1.6)) {
+  if (target && (!target.alive
+      || dist(enemy.x, enemy.y, target.x, target.y) > enemy.aggro * 1.8
+      || !withinLeash(world, enemy, target.roomKey)
+      || (target.roomKey !== enemy.roomKey && !mayPursue))) {
     target = null;
+    enemy.targetId = null;
   }
   if (!target) {
     const candidates = world.hostilesNear(enemy, enemy.aggro);
@@ -581,27 +660,33 @@ export function updateEnemy(enemy, world, dt) {
 
   if (!target) {
     enemy.state = 'idle';
-    // Drift home so a room does not slowly empty itself into a doorway.
-    if (dist(enemy.x, enemy.y, enemy.homeX, enemy.homeY) > 10) {
+    if (enemy.roomKey !== homeKey) {
+      // Wandered off after somebody and lost them. Go back and guard the room.
+      enemy.state = 'returning';
+      steerToward(enemy, world, homeKey, { x: enemy.homeX, y: enemy.homeY }, speed * 0.7, dt, 6);
+    } else if (dist(enemy.x, enemy.y, enemy.homeX, enemy.homeY) > 10) {
       moveToward(enemy, enemy.homeX, enemy.homeY, speed * 0.5, dt, 6);
     }
   } else {
     enemy.state = 'hunting';
     const d = dist(enemy.x, enemy.y, target.x, target.y);
-    if (d > enemy.attackRange) moveToward(enemy, target.x, target.y, speed, dt, enemy.attackRange * 0.8);
-    if (d <= enemy.attackRange + 4 && enemy.attackTimer <= 0) {
+    const sameRoom = enemy.roomKey === target.roomKey;
+    if (sameRoom && d > enemy.attackRange) {
+      moveToward(enemy, target.x, target.y, speed, dt, enemy.attackRange * 0.8);
+    } else if (!sameRoom && mayPursue) {
+      // Reluctant to leave: they move a little slower out of their own room,
+      // which is what gives somebody running away a chance.
+      steerToward(enemy, world, target.roomKey, target, speed * CHASE_SPEED, dt, 0);
+    }
+    if (sameRoom && d <= enemy.attackRange + 4 && enemy.attackTimer <= 0) {
+      basicAttack(enemy, target, world);
+      enemy.attackTimer = enemy.attackTime;
+    } else if (!sameRoom && world.canEngage(enemy, target) && d <= enemy.attackRange + 4 && enemy.attackTimer <= 0) {
+      // Trading blows across a doorway is allowed, at arm's length.
       basicAttack(enemy, target, world);
       enemy.attackTimer = enemy.attackTime;
     }
   }
 
-  // Monsters keep to their room. It is their room.
-  const home = world.dungeon.rooms.get(enemy.roomKey);
-  if (home) {
-    const fixed = clampToRoom(home, home.x, home.y, enemy.x, enemy.y, 6);
-    const b = ROOM_PX;
-    enemy.x = clamp(fixed.x, home.x * b + 10, home.x * b + b - 10);
-    enemy.y = clamp(fixed.y, home.y * b + 10, home.y * b + b - 10);
-  }
+  confineEnemy(enemy, world);
 }
-

@@ -218,8 +218,11 @@ export class Dungeon {
       for (let i = 0; i < count; i++) spawns.push({ type: biome.spawn.type, fromBiome: true });
     }
 
-    // Elites: rarer up top, routine once the dungeon is paying attention.
-    const eliteChance = Math.min(0.45, 0.03 + threat * 0.004 + depth * 0.015 +
+    // Elites: rarer up top, common once the dungeon is paying attention — but
+    // not the majority of a room. They carry both an HP and a damage
+    // multiplier, so this curve compounds with the Threat scaling below it and
+    // gets away from you quickly if it is allowed to.
+    const eliteChance = Math.min(0.3, 0.02 + threat * 0.0024 + depth * 0.009 +
       (biome && biome.aura && biome.aura.eliteChance ? biome.aura.eliteChance : 0));
     for (const s of spawns) {
       if (!plan.boss && rng.chance(eliteChance)) s.elite = true;

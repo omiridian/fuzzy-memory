@@ -165,8 +165,10 @@ export function createEnemy(typeId, x, y, roomKey, opts = {}) {
   const depth = opts.depth || 0;
   const biome = opts.biomeBonus || null;
 
+  // Health scales harder than damage on purpose: a deeper room should take
+  // longer to fight through, not delete somebody in two swings.
   const threatHp = 1 + threat * 0.011 + depth * 0.05;
-  const threatDmg = 1 + threat * 0.007 + depth * 0.03;
+  const threatDmg = 1 + threat * 0.0055 + depth * 0.024;
   const eliteMult = opts.elite && !def.boss ? ELITE : null;
 
   const maxHp = Math.round(
@@ -204,8 +206,14 @@ export function createEnemy(typeId, x, y, roomKey, opts = {}) {
     vy: 0,
     facing: 1,
     roomKey,
+    // Where it belongs, as opposed to where it currently is. A monster that
+    // chases somebody next door still counts against its own room.
+    homeKey: roomKey,
     homeX: x,
     homeY: y,
+    leash: def.boss ? 2 : 1,
+    chaseTime: 0,
+    chaseCooldown: 0,
     statuses: [],
     cooldowns: {},
     attackTimer: 0,
